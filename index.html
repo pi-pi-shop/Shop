@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة تواصل اجتماعي - نير فار</title>
+    
+    <!-- الخطوط والايقونات -->
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- مكتبات خارجية -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+    <style>
+        /* أنماط التصميم */
+        :root {
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --accent: #e74c3c;
+            --bg: #ecf0f1;
+            --text: #2c3e50;
+            --card-bg: #ffffff;
+        }
+
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background: var(--bg);
+            margin: 0;
+            padding: 0;
+        }
+
+        .navbar {
+            background: var(--card-bg);
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo-img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .nav-link {
+            color: var(--text);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+
+        .nav-link:hover {
+            background: var(--secondary);
+            color: white;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .post-card {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .post-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .user-avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .login-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 80vh;
+            text-align: center;
+        }
+
+        .google-btn {
+            background: #4285F4;
+            color: white;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: transform 0.3s;
+        }
+
+        .google-btn:hover {
+            transform: scale(1.05);
+        }
+
+        /* أنماط الهاتف */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            
+            .container {
+                padding: 0 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- شريط التنقل -->
+    <nav class="navbar">
+        <div class="logo">
+            <img src="https://i.imgur.com/ZXrG8k0.png" alt="شعار الموقع" class="logo-img">
+            <h1>نير فار</h1>
+        </div>
+        <div class="nav-links" id="navLinks">
+            <a href="#home" class="nav-link">الصفحة الرئيسية</a>
+            <a href="#friends" class="nav-link">الأصدقاء</a>
+            <a href="#messages" class="nav-link">الرسائل</a>
+            <a href="#profile" class="nav-link">الملف الشخصي</a>
+        </div>
+    </nav>
+
+    <!-- محتوى الصفحة -->
+    <div class="container">
+        <!-- قسم تسجيل الدخول -->
+        <div class="login-container" id="loginSection">
+            <h2>مرحبا بك في نير فار</h2>
+            <p>منصة التواصل الاجتماعي الأولى باللغة العربية</p>
+            <button class="google-btn" onclick="loginWithGoogle()">
+                <i class="fab fa-google"></i>
+                تسجيل الدخول بحساب جوجل
+            </button>
+        </div>
+
+        <!-- قسم المنشورات (يظهر بعد التسجيل) -->
+        <div id="contentSection" style="display: none;">
+            <!-- منشورات سترى هنا -->
+        </div>
+    </div>
+
+    <!-- البرمجة الرئيسية -->
+    <script>
+        // تهيئة Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyBtX5AKPX-hCYhpf15zrOvQBkLnNmrzLBQ",
+            authDomain: "near-far-2575c.firebaseapp.com",
+            projectId: "near-far-2575c",
+            storageBucket: "near-far-2575c.appspot.com",
+            messagingSenderId: "940403903796",
+            appId: "1:940403903796:web:f096316664563f9b15e961",
+            measurementId: "G-Y97XHVR6Z1"
+        };
+
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // دالة تسجيل الدخول
+        async function loginWithGoogle() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            try {
+                const result = await auth.signInWithPopup(provider);
+                showUserContent(result.user);
+            } catch (error) {
+                Swal.fire('خطأ!', error.message, 'error');
+            }
+        }
+
+        // عرض المحتوى بعد التسجيل
+        function showUserContent(user) {
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('contentSection').style.display = 'block';
+            
+            // عرض بيانات المستخدم
+            const userHeader = `
+                <div class="post-card">
+                    <div class="post-header">
+                        <img src="${user.photoURL}" class="user-avatar">
+                        <div>
+                            <h3>${user.displayName}</h3>
+                            <p>${user.email}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('contentSection').innerHTML = userHeader + generateSamplePosts();
+        }
+
+        // إنشاء منشورات مثاليه
+        function generateSamplePosts() {
+            return `
+                <div class="post-card">
+                    <div class="post-header">
+                        <img src="https://i.imgur.com/6VBx3io.png" class="user-avatar">
+                        <div>
+                            <h3>محمد أحمد</h3>
+                            <p>مشاركة تجربة جديدة</p>
+                        </div>
+                    </div>
+                    <p>هذا النص هو مثال لنص يمكن أن يستبدل في نفس المساحة</p>
+                </div>
+                
+                <div class="post-card">
+                    <div class="post-header">
+                        <img src="https://i.imgur.com/JfN9g1E.png" class="user-avatar">
+                        <div>
+                            <h3>أحلام عبدالله</h3>
+                            <p>صورة جديدة</p>
+                        </div>
+                    </div>
+                    <img src="https://picsum.photos/600/300" style="width:100%; border-radius:10px; margin-top:1rem;">
+                </div>
+            `;
+        }
+
+        // مراقبة حالة المستخدم
+        auth.onAuthStateChanged(user => {
+            if (user) showUserContent(user);
+        });
+    </script>
+</body>
+</html>
