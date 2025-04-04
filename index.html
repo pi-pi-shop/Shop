@@ -24,6 +24,8 @@
             --bg: #ecf0f1;
             --text: #2c3e50;
             --card-bg: #ffffff;
+            --error: #e74c3c;
+            --success: #2ecc71;
         }
 
         body {
@@ -31,6 +33,7 @@
             background: var(--bg);
             margin: 0;
             padding: 0;
+            min-height: 100vh;
         }
 
         .navbar {
@@ -40,18 +43,24 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
         }
 
         .logo {
             display: flex;
             align-items: center;
             gap: 1rem;
+            cursor: pointer;
         }
 
         .logo-img {
             width: 50px;
             height: 50px;
             border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--secondary);
         }
 
         .nav-links {
@@ -65,6 +74,7 @@
             padding: 0.5rem 1rem;
             border-radius: 5px;
             transition: all 0.3s;
+            font-weight: 600;
         }
 
         .nav-link:hover {
@@ -84,6 +94,11 @@
             padding: 1.5rem;
             margin-bottom: 1.5rem;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+
+        .post-card:hover {
+            transform: translateY(-5px);
         }
 
         .post-header {
@@ -98,6 +113,7 @@
             height: 45px;
             border-radius: 50%;
             object-fit: cover;
+            border: 2px solid var(--bg);
         }
 
         .login-container {
@@ -105,8 +121,9 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 80vh;
+            min-height: 70vh;
             text-align: center;
+            padding: 2rem;
         }
 
         .google-btn {
@@ -120,11 +137,23 @@
             display: flex;
             align-items: center;
             gap: 1rem;
-            transition: transform 0.3s;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
         .google-btn:hover {
             transform: scale(1.05);
+            box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+        }
+
+        .logout-btn {
+            background: var(--accent);
+            color: white;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 1rem;
         }
 
         /* أنماط الهاتف */
@@ -136,13 +165,28 @@
             .container {
                 padding: 0 0.5rem;
             }
+            
+            .google-btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        /* أنيميشن */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
         }
     </style>
 </head>
 <body>
     <!-- شريط التنقل -->
     <nav class="navbar">
-        <div class="logo">
+        <div class="logo" onclick="window.location.reload()">
             <img src="https://i.imgur.com/ZXrG8k0.png" alt="شعار الموقع" class="logo-img">
             <h1>نير فار</h1>
         </div>
@@ -168,7 +212,7 @@
 
         <!-- قسم المنشورات (يظهر بعد التسجيل) -->
         <div id="contentSection" style="display: none;">
-            <!-- منشورات سترى هنا -->
+            <!-- سيتم ملؤه بالبرمجة -->
         </div>
     </div>
 
@@ -188,43 +232,115 @@
         const app = firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
+        let currentUser = null;
+
+        // دالة معالجة الأخطاء
+        function handleAuthError(error) {
+            let errorMessage = "حدث خطأ غير متوقع";
+            switch(error.code) {
+                case "auth/popup-closed-by-user":
+                    errorMessage = "تم إغلاق نافذة التسجيل";
+                    break;
+                case "auth/network-request-failed":
+                    errorMessage = "مشكلة في الاتصال بالإنترنت";
+                    break;
+                case "auth/unauthorized-domain":
+                    errorMessage = "هذا المجال غير مسموح به";
+                    break;
+                case "auth/cancelled-popup-request":
+                    errorMessage = "تم إلغاء عملية التسجيل";
+                    break;
+            }
+            Swal.fire({
+                title: 'خطأ في التسجيل',
+                text: errorMessage,
+                icon: 'error',
+                confirmButtonText: 'حسناً'
+            });
+        }
 
         // دالة تسجيل الدخول
         async function loginWithGoogle() {
             const provider = new firebase.auth.GoogleAuthProvider();
+            provider.addScope('profile');
+            provider.addScope('email');
+            
             try {
                 const result = await auth.signInWithPopup(provider);
-                showUserContent(result.user);
+                currentUser = result.user;
+                
+                // حفظ بيانات المستخدم في Firestore
+                await db.collection('users').doc(currentUser.uid).set({
+                    name: currentUser.displayName,
+                    email: currentUser.email,
+                    photoURL: currentUser.photoURL,
+                    lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                
+                showUserContent(currentUser);
+                
+                Swal.fire({
+                    title: 'تم التسجيل بنجاح',
+                    text: `مرحباً ${currentUser.displayName}`,
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                
             } catch (error) {
-                Swal.fire('خطأ!', error.message, 'error');
+                handleAuthError(error);
+                console.error("Error signing in:", error);
             }
+        }
+
+        // دالة تسجيل الخروج
+        function logout() {
+            auth.signOut().then(() => {
+                currentUser = null;
+                document.getElementById('loginSection').style.display = 'flex';
+                document.getElementById('contentSection').style.display = 'none';
+                
+                Swal.fire({
+                    title: 'تم تسجيل الخروج',
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            }).catch((error) => {
+                handleAuthError(error);
+            });
         }
 
         // عرض المحتوى بعد التسجيل
         function showUserContent(user) {
             document.getElementById('loginSection').style.display = 'none';
-            document.getElementById('contentSection').style.display = 'block';
+            const contentSection = document.getElementById('contentSection');
+            contentSection.style.display = 'block';
+            contentSection.innerHTML = '';
             
             // عرض بيانات المستخدم
             const userHeader = `
-                <div class="post-card">
+                <div class="post-card fade-in">
                     <div class="post-header">
-                        <img src="${user.photoURL}" class="user-avatar">
+                        <img src="${user.photoURL || 'https://i.imgur.com/6VBx3io.png'}" class="user-avatar">
                         <div>
-                            <h3>${user.displayName}</h3>
-                            <p>${user.email}</p>
+                            <h3>${user.displayName || 'مستخدم'}</h3>
+                            <p>${user.email || 'بريد إلكتروني غير متوفر'}</p>
                         </div>
                     </div>
+                    <button class="logout-btn" onclick="logout()">
+                        <i class="fas fa-sign-out-alt"></i> تسجيل الخروج
+                    </button>
                 </div>
             `;
             
-            document.getElementById('contentSection').innerHTML = userHeader + generateSamplePosts();
+            contentSection.innerHTML = userHeader + generateSamplePosts();
         }
 
         // إنشاء منشورات مثاليه
         function generateSamplePosts() {
             return `
-                <div class="post-card">
+                <div class="post-card fade-in">
                     <div class="post-header">
                         <img src="https://i.imgur.com/6VBx3io.png" class="user-avatar">
                         <div>
@@ -232,10 +348,11 @@
                             <p>مشاركة تجربة جديدة</p>
                         </div>
                     </div>
-                    <p>هذا النص هو مثال لنص يمكن أن يستبدل في نفس المساحة</p>
+                    <p>مرحباً بالجميع، أود مشاركة تجربتي الأولى في استخدام هذه المنصة الرائعة!</p>
+                    <small style="color: #7f8c8d; display: block; margin-top: 10px;">منذ ساعتين</small>
                 </div>
                 
-                <div class="post-card">
+                <div class="post-card fade-in">
                     <div class="post-header">
                         <img src="https://i.imgur.com/JfN9g1E.png" class="user-avatar">
                         <div>
@@ -243,14 +360,40 @@
                             <p>صورة جديدة</p>
                         </div>
                     </div>
-                    <img src="https://picsum.photos/600/300" style="width:100%; border-radius:10px; margin-top:1rem;">
+                    <img src="https://picsum.photos/600/300?random=1" style="width:100%; border-radius:10px; margin-top:1rem;">
+                    <div style="margin-top: 10px;">
+                        <button style="background: none; border: none; color: var(--accent); cursor: pointer;">
+                            <i class="far fa-heart"></i> أعجبني
+                        </button>
+                        <button style="background: none; border: none; color: var(--secondary); margin-right: 15px; cursor: pointer;">
+                            <i class="far fa-comment"></i> تعليق
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="post-card fade-in">
+                    <div class="post-header">
+                        <img src="https://i.imgur.com/ZXrG8k0.png" class="user-avatar">
+                        <div>
+                            <h3>نير فار</h3>
+                            <p>ترحيب بالجديد</p>
+                        </div>
+                    </div>
+                    <p>نرحب بجميع الأعضاء الجدد في منصتنا! نأمل أن تجدوا هنا ما تبحثون عنه.</p>
+                    <small style="color: #7f8c8d; display: block; margin-top: 10px;">منذ يوم</small>
                 </div>
             `;
         }
 
         // مراقبة حالة المستخدم
         auth.onAuthStateChanged(user => {
-            if (user) showUserContent(user);
+            if (user) {
+                currentUser = user;
+                showUserContent(user);
+            } else {
+                document.getElementById('loginSection').style.display = 'flex';
+                document.getElementById('contentSection').style.display = 'none';
+            }
         });
     </script>
 </body>
